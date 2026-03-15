@@ -1,0 +1,7 @@
+<?xml version='1.0' encoding='utf-8'?>
+<resources>
+    <string name="app_name">Viewchat</string>
+    <string name="title_activity_main">Viewchat</string>
+    <string name="package_name">com.viewchat.app</string>
+    <string name="custom_url_scheme">com.viewchat.app</string>
+</resources>
