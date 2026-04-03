@@ -1,4 +1,6 @@
 import React, { useState } from 'react';
+import { auth, googleProvider } from '../firebase';
+import { signInWithPopup } from 'firebase/auth';
 import { Icons } from './Icons';
 
 function LoginPage({ onLogin }) {
@@ -11,6 +13,22 @@ function LoginPage({ onLogin }) {
     e.preventDefault();
     // Simulate API call
     onLogin({ name: isLogin ? 'Antigravity User' : name, email });
+  };
+
+  const handleGoogleLogin = async () => {
+    try {
+      const result = await signInWithPopup(auth, googleProvider);
+      const user = result.user;
+      onLogin({
+        uid: user.uid,
+        name: user.displayName,
+        email: user.email,
+        avatar: user.photoURL
+      });
+    } catch (error) {
+      console.error("Error signing in with Google", error);
+      alert(error.message);
+    }
   };
 
   return (
@@ -91,7 +109,7 @@ function LoginPage({ onLogin }) {
           </div>
 
           <div style={{ display: 'flex', gap: '15px' }}>
-            <button className="chat-input" style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', cursor: 'pointer', padding: '12px' }}>
+            <button onClick={handleGoogleLogin} className="chat-input" style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', cursor: 'pointer', padding: '12px' }}>
               <Icons.Google /> <span style={{ fontSize: '14px', fontWeight: '500' }}>Google</span>
             </button>
             <button className="chat-input" style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', cursor: 'pointer', padding: '12px' }}>
