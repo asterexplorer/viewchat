@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
-import { auth, googleProvider } from '../firebase';
-import { signInWithPopup } from 'firebase/auth';
+import { auth, googleProvider, db } from '../firebase';
+import { signInWithPopup, signInWithEmailAndPassword, createUserWithEmailAndPassword, updateProfile, OAuthProvider } from 'firebase/auth';
+import { doc, setDoc, serverTimestamp } from 'firebase/firestore';
 import { Icons } from './Icons';
 
 function LoginPage({ onLogin }) {
@@ -9,25 +10,70 @@ function LoginPage({ onLogin }) {
   const [password, setPassword] = useState('');
   const [name, setName] = useState('');
 
-  const handleSubmit = (e) => {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const syncUserToFirestore = async (user, displayName) => {
+    const userData = {
+      uid: user.uid,
+      name: displayName || user.displayName || 'Anonymous',
+      email: user.email,
+      avatar: user.photoURL || (displayName || user.displayName)?.[0] || 'U',
+      status: 'online',
+      lastSeen: serverTimestamp()
+    };
+    await setDoc(doc(db, 'users', user.uid), userData, { merge: true });
+    return userData;
+  };
+
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    // Simulate API call
-    onLogin({ name: isLogin ? 'Antigravity User' : name, email });
+    setIsLoading(true);
+
+    try {
+      if (isLogin) {
+        const result = await signInWithEmailAndPassword(auth, email, password);
+        const userData = await syncUserToFirestore(result.user);
+        onLogin(userData);
+      } else {
+        const result = await createUserWithEmailAndPassword(auth, email, password);
+        await updateProfile(result.user, { displayName: name });
+        const userData = await syncUserToFirestore(result.user, name);
+        onLogin(userData);
+      }
+    } catch (error) {
+      console.error("Auth error:", error);
+      alert(error.message);
+    } finally {
+      setIsLoading(false);
+    }
   };
 
   const handleGoogleLogin = async () => {
+    setIsLoading(true);
     try {
       const result = await signInWithPopup(auth, googleProvider);
-      const user = result.user;
-      onLogin({
-        uid: user.uid,
-        name: user.displayName,
-        email: user.email,
-        avatar: user.photoURL
-      });
+      const userData = await syncUserToFirestore(result.user);
+      onLogin(userData);
     } catch (error) {
-      console.error("Error signing in with Google", error);
+      console.error("Google login error:", error);
       alert(error.message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  const handleAppleLogin = async () => {
+    setIsLoading(true);
+    try {
+      const provider = new OAuthProvider('apple.com');
+      const result = await signInWithPopup(auth, provider);
+      const userData = await syncUserToFirestore(result.user);
+      onLogin(userData);
+    } catch (error) {
+       console.error("Apple login error:", error);
+       alert(error.message);
+    } finally {
+      setIsLoading(false);
     }
   };
 
@@ -96,8 +142,13 @@ function LoginPage({ onLogin }) {
             />
           </div>
 
-          <button type="submit" className="send-btn" style={{ width: '100%', height: '54px', fontSize: '16px', fontWeight: '600', marginTop: '10px' }}>
-            {isLogin ? 'Sign In' : 'Create Account'}
+          <button 
+            type="submit" 
+            className="send-btn" 
+            style={{ width: '100%', height: '54px', fontSize: '16px', fontWeight: '600', marginTop: '10px', opacity: isLoading ? 0.7 : 1 }}
+            disabled={isLoading}
+          >
+            {isLoading ? 'Processing...' : (isLogin ? 'Sign In' : 'Create Account')}
           </button>
         </form>
 
@@ -112,7 +163,7 @@ function LoginPage({ onLogin }) {
             <button onClick={handleGoogleLogin} className="chat-input" style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', cursor: 'pointer', padding: '12px' }}>
               <Icons.Google /> <span style={{ fontSize: '14px', fontWeight: '500' }}>Google</span>
             </button>
-            <button className="chat-input" style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', cursor: 'pointer', padding: '12px' }}>
+            <button onClick={handleAppleLogin} className="chat-input" style={{ flexGrow: 1, display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '10px', cursor: 'pointer', padding: '12px' }}>
               <Icons.Apple /> <span style={{ fontSize: '14px', fontWeight: '500' }}>Apple</span>
             </button>
           </div>

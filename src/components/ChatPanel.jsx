@@ -1,5 +1,7 @@
 import React, { useState, useRef } from 'react';
 import { Icons } from './Icons';
+import { storage } from '../firebase';
+import { ref, uploadBytesResumable, getDownloadURL } from 'firebase/storage';
 
 function ChatPanel({ 
   selectedChat, 
@@ -15,6 +17,7 @@ function ChatPanel({
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isInfoOpen, setIsInfoOpen] = useState(false);
   const [attachment, setAttachment] = useState(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const fileInputRef = useRef(null);
 
   if (!selectedChat) return null;
@@ -28,12 +31,35 @@ function ChatPanel({
     }
   };
 
-  const handleFormSubmit = (e) => {
+  const handleFormSubmit = async (e) => {
     e.preventDefault();
     if (!newMessage.trim() && !attachment) return;
+
+    let finalAttachment = null;
+    if (attachment && attachment.file) {
+      const storageRef = ref(storage, `chats/${selectedChat.id}/${Date.now()}_${attachment.name}`);
+      const uploadTask = uploadBytesResumable(storageRef, attachment.file);
+
+      // We wait for the upload to complete
+      await new Promise((resolve, reject) => {
+        uploadTask.on('state_changed', 
+          (snapshot) => {
+            const progress = (snapshot.bytesTransferred / snapshot.totalBytes) * 100;
+            setUploadProgress(progress);
+          }, 
+          (error) => reject(error), 
+          async () => {
+            const downloadURL = await getDownloadURL(uploadTask.snapshot.ref);
+            finalAttachment = { ...attachment, url: downloadURL };
+            resolve();
+          }
+        );
+      });
+    }
     
-    sendMessage(e, attachment);
+    sendMessage(e, finalAttachment);
     setAttachment(null);
+    setUploadProgress(0);
     if (fileInputRef.current) fileInputRef.current.value = '';
   };
 
